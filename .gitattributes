@@ -1,0 +1,3 @@
+
+# bin only has shell script files
+bin/* text eol=lf
