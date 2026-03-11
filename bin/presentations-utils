@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  presentations-utils <command> [args...]
+  presentations-utils help
+
+Commands:
+EOF
+  list_commands
+}
+
+collect_commands() {
+  local -a cmds=()
+
+  shopt -s nullglob
+  for f in /usr/local/bin/convertto-*; do
+    [[ -x "$f" ]] || continue
+    cmds+=("$(basename "$f")")
+  done
+  shopt -u nullglob
+
+  # Allow dropping into a shell explicitly.
+  cmds+=("bash")
+
+  declare -A seen=()
+  local -a uniq=()
+  local c
+  for c in "${cmds[@]}"; do
+    if [[ -z "${seen[$c]:-}" ]]; then
+      uniq+=("$c")
+      seen[$c]=1
+    fi
+  done
+
+  mapfile -t COMMANDS < <(printf '%s\n' "${uniq[@]}" | sort)
+}
+
+list_commands() {
+  local c
+  for c in "${COMMANDS[@]}"; do
+    printf '  - %s\n' "$c"
+  done
+}
+
+is_allowed_command() {
+  local needle=${1:-}
+  local c
+  for c in "${COMMANDS[@]}"; do
+    if [[ "$c" == "$needle" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+COMMANDS=()
+collect_commands
+
+cmd=${1:-}
+if [[ -z "$cmd" || "$cmd" == "help" || "$cmd" == "-h" || "$cmd" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if ! is_allowed_command "$cmd"; then
+  echo "ERROR: Unknown command: $cmd" >&2
+  echo >&2
+  usage >&2
+  exit 2
+fi
+
+shift
+exec "$cmd" "$@"

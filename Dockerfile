@@ -5,7 +5,7 @@ ARG DRAWIO_VERSION=24.7.17
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     RUBYOPT=-Eutf-8:utf-8 \
-    PDF_THEMES_DIR=/themes \
+    PDF_THEMES_DIR=/themes/asciidoctor \
     MARP_THEMES_DIR=/themes/marp \
     MARP_BROWSER_PATH=/usr/bin/chromium
 
@@ -36,9 +36,12 @@ RUN gem install --no-document \
 
 RUN npm install -g --no-fund --no-audit @marp-team/marp-cli
 
-RUN mkdir -p /themes /themes/fonts /themes/marp
+RUN mkdir -p /themes/asciidoctor /themes/asciidoctor/fonts /themes/marp
 
 COPY themes/marp/ /themes/marp/
+
+# Default Asciidoctor PDF themes live under /themes/asciidoctor
+# (users can mount their own directory there at runtime)
 
 # draw.io desktop (for convertto-png)
 RUN set -euo pipefail; \
@@ -53,15 +56,18 @@ RUN set -euo pipefail; \
 COPY bin/convertto-asciidoc /usr/local/bin/convertto-asciidoc
 COPY bin/convertto-pdf /usr/local/bin/convertto-pdf
 COPY bin/convertto-png /usr/local/bin/convertto-png
-COPY bin/convertto-marp /usr/local/bin/convertto-marp
+COPY bin/convertto-presentation /usr/local/bin/convertto-presentation
+COPY bin/presentations-utils /usr/local/bin/presentations-utils
 COPY bin/marp-theme-embed.js /usr/local/lib/marp-theme-embed.js
 
 RUN chmod +x \
     /usr/local/bin/convertto-asciidoc \
     /usr/local/bin/convertto-pdf \
     /usr/local/bin/convertto-png \
-    /usr/local/bin/convertto-marp
+    /usr/local/bin/convertto-presentation \
+    /usr/local/bin/presentations-utils
 
 WORKDIR /work
 
-CMD ["bash"]
+ENTRYPOINT ["/usr/local/bin/presentations-utils"]
+CMD []
