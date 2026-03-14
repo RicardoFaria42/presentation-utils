@@ -73,10 +73,10 @@ module PresentationUtils
       end
 
       def parse_activity(line)
-        match = line.match(/\A(\d+)\s*,\s*"([^"]+)"(?:\s*,\s*(.+))?\z/)
+        match = line.match(/\A([^\s,]+)\s*,\s*"([^"]+)"(?:\s*,\s*(.+))?\z/)
         return nil unless match
 
-        id = match[1].to_i
+        id = match[1]
         label = match[2].strip
         extras = match[3].to_s.split(",").map(&:strip)
 
@@ -91,7 +91,6 @@ module PresentationUtils
               .split(/[\s,;]+/)
               .map(&:strip)
               .reject(&:empty?)
-              .map(&:to_i)
           end
         end
 
