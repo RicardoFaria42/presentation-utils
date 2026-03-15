@@ -34,7 +34,7 @@ RUN gem install --no-document \
     asciidoctor-diagram \
     kramdown-asciidoc
 
-RUN npm install -g --no-fund --no-audit @marp-team/marp-cli
+RUN npm install -g --no-fund --no-audit @marp-team/marp-cli @marp-team/marp-core
 
 RUN mkdir -p /themes/asciidoctor /themes/asciidoctor/fonts /themes/marp
 
@@ -59,7 +59,9 @@ COPY bin/convertto-png /usr/local/bin/convertto-png
 COPY bin/convertto-presentation /usr/local/bin/convertto-presentation
 COPY bin/presentations-utils /usr/local/bin/presentations-utils
 COPY bin/marp-theme-embed.js /usr/local/lib/marp-theme-embed.js
+COPY bin/engine.mjs /usr/local/lib/engine.mjs
 COPY plugins/asciidoctor/ /plugins/asciidoctor/
+COPY plugins/marp/ /plugins/marp/
 
 RUN chmod +x \
     /usr/local/bin/convertto-asciidoc \

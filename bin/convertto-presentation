@@ -77,6 +77,7 @@ if [[ ! -f "$path" ]]; then
   exit 2
 fi
 
+
 if [[ "$format" != "pdf" && "$format" != "html" ]]; then
   echo "ERROR: Unsupported --format: $format (expected: pdf|html)" >&2
   exit 2
@@ -88,17 +89,21 @@ if [[ -z "$theme" && -f "$MARP_THEMES_DIR/default-theme" ]]; then
   theme="$(tr -d '\r\n' < "$MARP_THEMES_DIR/default-theme" | xargs)"
 fi
 
-base="$path"
-if [[ "$path" == *.* ]]; then
-  base="${path%.*}"
+input_dir="$(cd "$(dirname "$path")" && pwd)"
+input_file="$(basename "$path")"
+input_base="$input_file"
+if [[ "$input_file" == *.* ]]; then
+  input_base="${input_file%.*}"
 fi
 
 if [[ -z "$output" ]]; then
   if [[ "$format" == "pdf" ]]; then
-    output="${base}.pdf"
+    output="${input_base}.pdf"
   else
-    output="${base}.html"
+    output="${input_base}.html"
   fi
+elif [[ "$output" != /* ]]; then
+  output="$input_dir/$output"
 fi
 
 if [[ -z "$theme" ]]; then
@@ -139,6 +144,8 @@ if [[ "$notes" -eq 1 ]]; then
   marp_args+=(--pdf-notes)
 fi
 
-marp_args+=("$path" -o "$output" --theme "$compiled_theme")
+marp_args+=("$input_file" -o "$output" --theme "$compiled_theme" --engine /usr/local/lib/engine.mjs)
 
+pushd "$input_dir" >/dev/null
 marp "${marp_args[@]}" "${extra[@]}"
+popd >/dev/null
