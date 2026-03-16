@@ -27,9 +27,10 @@ function parseGanttBlock(content) {
 
     if (!inActivities) continue;
 
-    const indent = (line.match(/^[\t ]*/) || [""])[0]
-      .replace(/\t/g, "  ")
-      .length;
+    const indent = (line.match(/^[\t ]*/) || [""])[0].replace(
+      /\t/g,
+      "  ",
+    ).length;
     const activity = parseActivity(stripped);
     if (activity) rawEntries.push({ indent, activity });
   }
@@ -38,7 +39,7 @@ function parseGanttBlock(content) {
   const computed = computeSchedule(activities);
   const totalUnits = Math.max(
     0,
-    ...computed.map((activity) => activity.end || 0)
+    ...computed.map((activity) => activity.end || 0),
   );
 
   return { period, activities: computed, totalUnits };
@@ -59,10 +60,7 @@ function parseActivity(line) {
     if (/^duration\s*=\s*(\d+)$/.test(extra)) {
       duration = parseInt(RegExp.$1, 10);
     } else if (/^dependencies\s*=\s*(.+)$/.test(extra)) {
-      dependencies = RegExp.$1
-        .split(/[\s,;]+/)
-        .map((dep) => dep.trim());
-      console.log(id, label, "dependencies", dependencies)
+      dependencies = RegExp.$1.split(/[\s,;]+/).map((dep) => dep.trim());
     }
   }
 
@@ -82,7 +80,8 @@ function applyGrouping(entries) {
 
     activity.indentLevel = indentLevel > baseIndent ? 1 : 0;
     activity.isGroup = false;
-    activity.isMilestone = activity.duration === null || activity.duration === undefined;
+    activity.isMilestone =
+      activity.duration === null || activity.duration === undefined;
     grouped.push(activity);
 
     const nextEntry = entries[index + 1];
@@ -152,9 +151,17 @@ function renderSvg(activities, totalUnits, period, options) {
   const markerColor = options.markerColor || "#000000";
   const headerBg = options.headerBg || "#f5f5f5";
 
-  const labelTexts = activities.map((activity) => `${activity.id}. ${activity.label}`);
-  const labelMax = labelTexts.reduce((max, text) => Math.max(max, text.length), 10);
-  const labelColWidth = Math.max(160, Math.floor(labelMax * (fontSize * 0.6) + 24));
+  const labelTexts = activities.map(
+    (activity) => `${activity.id}. ${activity.label}`,
+  );
+  const labelMax = labelTexts.reduce(
+    (max, text) => Math.max(max, text.length),
+    10,
+  );
+  const labelColWidth = Math.max(
+    160,
+    Math.floor(labelMax * (fontSize * 0.6) + 24),
+  );
 
   const leftPadding = 12;
   const topPadding = 12;
@@ -171,8 +178,11 @@ function renderSvg(activities, totalUnits, period, options) {
   })();
 
   const periodCellPadding = 6;
-  const maxPeriodLabelLength = periodLabel.length + String(normalizedTotal).length;
-  const minCellWidth = Math.floor(maxPeriodLabelLength * (fontSize * 0.7) + periodCellPadding * 2);
+  const maxPeriodLabelLength =
+    periodLabel.length + String(normalizedTotal).length;
+  const minCellWidth = Math.floor(
+    maxPeriodLabelLength * (fontSize * 0.7) + periodCellPadding * 2,
+  );
   cellWidth = Math.max(cellWidth, minCellWidth);
 
   const gridWidth = (normalizedTotal + 1) * cellWidth;
@@ -187,34 +197,42 @@ function renderSvg(activities, totalUnits, period, options) {
   const barHeight = Math.floor(rowHeight * 0.55);
 
   const svgLines = [];
-  svgLines.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
-  svgLines.push(`  <rect x="0" y="0" width="${width}" height="${height}" fill="white"/>`);
-  svgLines.push(`  <rect x="${leftPadding}" y="${topPadding}" width="${labelColWidth + gridWidth}" height="${headerHeight}" fill="${headerBg}"/>`);
-
-  const headerY = topPadding + Math.floor(headerHeight / 2) + Math.floor(fontSize / 2) - 2;
   svgLines.push(
-    `  <text x="${leftPadding + 4}" y="${headerY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="700" fill="${textColor}">Activity</text>`
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" class="gantt-diagram">`,
+  );
+  svgLines.push(
+    `  <rect x="0" y="0" width="${width}" height="${height}" class="background"/>`,
+  );
+  svgLines.push(
+    `  <rect x="${leftPadding}" y="${topPadding}" width="${labelColWidth + gridWidth}" height="${headerHeight}" class="header"/>`,
+  );
+
+  const headerY =
+    topPadding + Math.floor(headerHeight / 2) + Math.floor(fontSize / 2) - 2;
+  svgLines.push(
+    `  <text x="${leftPadding + 4}" y="${headerY}" font-size="${fontSize}" font-weight="700" class="header">Activity</text>`,
   );
 
   for (let idx = 0; idx < normalizedTotal; idx += 1) {
     const label = `${periodLabel}${idx + 1}`;
     const x = leftPadding + labelColWidth + idx * cellWidth + cellWidth;
     svgLines.push(
-      `  <text x="${x}" y="${headerY}" text-anchor="middle" font-family="${fontFamily}" font-size="${fontSize}" font-weight="700" fill="${textColor}">${escapeXml(label)}</text>`
+      `  <text x="${x}" y="${headerY}" text-anchor="middle" font-size="${fontSize}" font-weight="700" class="header">${escapeXml(label)}</text>`,
     );
   }
 
   const gridTop = topPadding + headerHeight;
   const gridBottom = height - bottomPadding;
   svgLines.push(
-    `  <line x1="${leftPadding + labelColWidth}" y1="${topPadding}" x2="${leftPadding + labelColWidth}" y2="${gridBottom}" stroke="${gridColor}"/>`
+    `  <line x1="${leftPadding + labelColWidth}" y1="${topPadding}" x2="${leftPadding + labelColWidth}" y2="${gridBottom}" stroke="${gridColor}"/>`,
   );
 
   for (let idx = 1; idx <= normalizedTotal; idx += 1) {
     if (idx % 5 !== 0) continue;
-    const x = leftPadding + labelColWidth + idx * cellWidth + Math.floor(cellWidth / 2);
+    const x =
+      leftPadding + labelColWidth + idx * cellWidth + Math.floor(cellWidth / 2);
     svgLines.push(
-      `  <line x1="${x}" y1="${topPadding}" x2="${x}" y2="${gridBottom}" stroke="${gridColor}"/>`
+      `  <line x1="${x}" y1="${topPadding}" x2="${x}" y2="${gridBottom}" stroke="${gridColor}"/>`,
     );
   }
 
@@ -226,7 +244,7 @@ function renderSvg(activities, totalUnits, period, options) {
     if (row.type === "separator") {
       const lineY = rowY + row.height / 2;
       svgLines.push(
-        `  <line x1="${leftPadding}" y1="${lineY}" x2="${leftPadding + labelColWidth + gridWidth}" y2="${lineY}" stroke="${gridColor}"/>`
+        `  <line x1="${leftPadding}" y1="${lineY}" x2="${leftPadding + labelColWidth + gridWidth}" y2="${lineY}" stroke="${gridColor}"/>`,
       );
       return;
     }
@@ -237,7 +255,7 @@ function renderSvg(activities, totalUnits, period, options) {
     const textY = rowY + row.height / 2 + Math.floor(fontSize / 2) - 2;
     const fontWeight = activity.isGroup ? "bold" : "normal";
     svgLines.push(
-      `  <text x="${labelX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${textColor}">${escapeXml(label)}</text>`
+      `  <text x="${labelX}" y="${textY}" font-size="${fontSize}" font-weight="${fontWeight}" class="activity-label">${escapeXml(label)}</text>`,
     );
 
     if (activity.isGroup) return;
@@ -245,14 +263,22 @@ function renderSvg(activities, totalUnits, period, options) {
     const barY = rowY + Math.floor((row.height - barHeight) / 2);
 
     if (activity.isMilestone) {
-      const milestoneX = leftPadding + labelColWidth + activity.start * cellWidth + Math.floor(cellWidth / 2);
+      const milestoneX =
+        leftPadding +
+        labelColWidth +
+        activity.start * cellWidth +
+        Math.floor(cellWidth / 2);
       milestoneMarker(svgLines, milestoneX, barY, barHeight, markerColor);
       return;
     }
 
-    const startX = leftPadding + labelColWidth + activity.start * cellWidth + Math.floor(cellWidth / 2);
+    const startX =
+      leftPadding +
+      labelColWidth +
+      activity.start * cellWidth +
+      Math.floor(cellWidth / 2);
     const widthValue = activity.duration * cellWidth;
-    taskBar(svgLines, startX, barY, widthValue, barHeight, barColor, markerColor);
+    taskBar(svgLines, startX, barY, widthValue, barHeight);
   });
 
   svgLines.push("</svg>");
@@ -289,17 +315,19 @@ function buildRows(activities, rowHeight, separatorHeight) {
   return rows;
 }
 
-function taskBar(svgLines, startX, barY, width, barHeight, barColor, markerColor) {
+function taskBar(svgLines, startX, barY, width, barHeight) {
   const markerWidth = Math.max(6, Math.floor(barHeight * 0.8));
   const markerHeight = Math.max(8, Math.floor(barHeight * 0.9));
   const markerTip = Math.max(3, Math.floor(markerHeight * 0.35));
 
-  svgLines.push(`  <rect x="${startX}" y="${barY}" width="${width}" height="${barHeight}" fill="${barColor}"/>`);
   svgLines.push(
-    `  <polygon points="${markerPoints(startX, barY, markerWidth, markerHeight, markerTip)}" fill="${markerColor}"/>`
+    `  <rect x="${startX}" y="${barY}" width="${width}" height="${barHeight}" class="bar"/>`,
   );
   svgLines.push(
-    `  <polygon points="${markerPoints(startX + width, barY, markerWidth, markerHeight, markerTip)}" fill="${markerColor}"/>`
+    `  <polygon points="${markerPoints(startX, barY, markerWidth, markerHeight, markerTip)}" class="marker"/>`,
+  );
+  svgLines.push(
+    `  <polygon points="${markerPoints(startX + width, barY, markerWidth, markerHeight, markerTip)}" class="marker"/>`,
   );
 }
 
@@ -307,7 +335,7 @@ function milestoneMarker(svgLines, milestoneX, barY, barHeight, markerColor) {
   const barCenterY = barY + barHeight / 2;
   const markerWidth = Math.max(6, Math.floor(barHeight * 0.8));
   svgLines.push(
-    `  <polygon points="${diamondPoints(milestoneX, barCenterY, markerWidth)}" fill="${markerColor}"/>`
+    `  <polygon points="${diamondPoints(milestoneX, barCenterY, markerWidth)}" class="marker"/>`,
   );
 }
 
@@ -352,9 +380,14 @@ function ensureRelative(fromDir, targetPath) {
   return relativePath.split(path.sep).join("/");
 }
 
-function generateSvgFile(content, env, opts) {
+function generateSvg(content, env, opts) {
   const { period, activities, totalUnits } = parseGanttBlock(content);
   const svg = renderSvg(activities, totalUnits, period, opts || {});
+  return svg;
+}
+
+function generateSvgFile(content, env, opts) {
+  const svg = generateSvg(content, env, opts);
   const baseDir = resolveBaseDir(env);
 
   const fileName = `gantt-${crypto.randomBytes(4).toString("hex")}.svg`;
@@ -366,17 +399,20 @@ function generateSvgFile(content, env, opts) {
 }
 
 function ganttMarkdownItPlugin(md, pluginOptions) {
-  const defaultFence = md.renderer.rules.fence || ((tokens, idx, options, env, slf) => slf.renderToken(tokens, idx, options));
+  const defaultFence =
+    md.renderer.rules.fence ||
+    ((tokens, idx, options, env, slf) => slf.renderToken(tokens, idx, options));
 
   md.renderer.rules.fence = (tokens, idx, options, env, slf) => {
     const token = tokens[idx];
     const info = (token.info || "").trim();
     if (info === "gantt") {
-      const imagePath = generateSvgFile(token.content || "", env || {}, pluginOptions || {});
-      return `<img src="${imagePath}" class="drop-shadow center"/>`
+      //const imagePath = generateSvgFile(
+      return generateSvg(token.content || "", env || {}, pluginOptions || {});
+      //return `<img src="${imagePath}" class="drop-shadow center"/>`;
     }
     return defaultFence(tokens, idx, options, env, slf);
   };
 }
 
-module.exports = ganttMarkdownItPlugin
+module.exports = ganttMarkdownItPlugin;
