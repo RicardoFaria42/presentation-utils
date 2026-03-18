@@ -84,7 +84,7 @@ class PDFAdvancedTitlePage < (Asciidoctor::Converter.for 'pdf')
         move_down @theme.title_page_subtitle_margin_bottom || 0
       end
       if @theme.title_page_authors_display != 'none'
-        authors_text = apply_subs_discretely doc, @theme.advanced_title_page_authors_template
+        authors_text = apply_subs_discretely doc, (@theme.advanced_title_page_authors_template || '')
 
         move_down @theme.title_page_authors_margin_top || 0
         indent (@theme.title_page_authors_margin_left || 0), (@theme.title_page_authors_margin_right || 0) do
@@ -98,15 +98,12 @@ class PDFAdvancedTitlePage < (Asciidoctor::Converter.for 'pdf')
       end
       unless @theme.title_page_revision_display == 'none' || (revision_info = [(doc.attr? 'revnumber') ? %(#{doc.attr 'version-label'} #{doc.attr 'revnumber'}) : nil, (doc.attr 'revdate')].compact).empty?
         move_down @theme.title_page_revision_margin_top || 0
-        revision_text = apply_subs_discretely doc, @theme.advanced_title_page_revision_template
+        revision_text = apply_subs_discretely doc, (@theme.advanced_title_page_revision_template || '')
 
-        # revision_text = revision_info.join @theme.title_page_revision_delimiter
-        # if (revremark = doc.attr 'revremark')
-        #   revision_text = %(#{revision_text}: #{revremark})
-        # end
+        revision_text_alignment = @theme.advanced_title_page_revision_text_align || title_text_align;
         indent (@theme.title_page_revision_margin_left || 0), (@theme.title_page_revision_margin_right || 0) do
           theme_font :title_page_revision do
-            ink_prose revision_text, align: title_text_align, margin: 0, normalize: false
+            ink_prose revision_text, align: revision_text_alignment.to_sym, margin: 0, normalize: false
           end
         end
         move_down @theme.title_page_revision_margin_bottom || 0
