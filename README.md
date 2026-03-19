@@ -97,10 +97,16 @@ docker run --rm -v "${PWD}:/work" presentation-utils convertto-marp deck.md --fo
 Pass extra marp args after `--`:
 
 ```bash
-docker run --rm -v "${PWD}:/work" presentation-utils convertto-marp deck.md -- --bespoke.progress
+docker run --rm -v "${PWD}:/work" presentation-utils convertto-presentation deck.md -- --bespoke.progress
 ```
 
 ## Git Bash / MSYS2
+
+## Windows Path Notes
+
+- Windows absolute paths (e.g. `C:\repo\file.md`) only work when the file is under the current directory mounted to `/work`.
+- Passing an absolute path outside the current working directory will fail with "outside the current working directory".
+- `convertto-presentation --theme` accepts a theme name/filename only (e.g. `--theme acme` or `--theme acme.css`), not a path.
 
 When running from Git Bash on Windows, disable path conversion:
 
