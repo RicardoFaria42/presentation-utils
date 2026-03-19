@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source /usr/local/lib/path-utils.sh
+
 usage() {
   cat <<'EOF'
 Usage: convertto-png <path.drawio>
@@ -17,6 +19,8 @@ if [[ -z "$path" ]]; then
   usage
   exit 2
 fi
+
+path="$(pu_hostpath_to_work "$path")"
 
 if [[ ! -f "$path" ]]; then
   echo "ERROR: File not found: $path" >&2
