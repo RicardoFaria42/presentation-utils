@@ -34,7 +34,8 @@ RUN gem install --no-document \
     asciidoctor-diagram \
     kramdown-asciidoc
 
-RUN npm install -g --no-fund --no-audit @marp-team/marp-cli @marp-team/marp-core
+RUN npm install -g --no-fund --no-audit @marp-team/marp-cli @marp-team/marp-core \
+    highlight.js markdown-it-highlightjs
 
 RUN mkdir -p /themes/asciidoctor /themes/asciidoctor/fonts /themes/marp
 
