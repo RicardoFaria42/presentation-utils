@@ -60,6 +60,7 @@ COPY bin/convertto-presentation /usr/local/bin/convertto-presentation
 COPY bin/presentations-utils /usr/local/bin/presentations-utils
 COPY bin/marp-theme-embed.js /usr/local/lib/marp-theme-embed.js
 COPY bin/engine.mjs /usr/local/lib/engine.mjs
+COPY bin/path-utils.sh /usr/local/lib/path-utils.sh
 COPY plugins/asciidoctor/ /plugins/asciidoctor/
 COPY plugins/marp/ /plugins/marp/
 
@@ -68,7 +69,8 @@ RUN chmod +x \
     /usr/local/bin/convertto-pdf \
     /usr/local/bin/convertto-png \
     /usr/local/bin/convertto-presentation \
-    /usr/local/bin/presentations-utils
+    /usr/local/bin/presentations-utils \
+    /usr/local/lib/path-utils.sh
 
 WORKDIR /work
 
