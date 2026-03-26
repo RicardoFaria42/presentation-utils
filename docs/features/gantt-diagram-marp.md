@@ -11,6 +11,7 @@ period: "week"
 activities:
   1, "Planning"
     2, "Analysis", duration=3, dependencies=1
+    2.1, "Kickoff", duration=1, dependencies=SS2
     3, "Requirements", duration=2, dependencies=2
   4, "Delivery"
     5, "Development", duration=6, dependencies=4
@@ -18,6 +19,7 @@ activities:
   7, "Launch", dependencies=6
   8, "Support", duration=12, dependencies=7
   9, "Training", duration=1.5, dependencies=6, notBefore=10
+  10, "Wrap-up Window", duration=1, dependencies=SS6 FF8
 ```
 ```
 

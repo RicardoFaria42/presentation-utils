@@ -19,8 +19,9 @@ activities:
     5, "Development", duration=6, dependencies=4
     6, "Tests", duration=2, dependencies=5
   7, "Launch", dependencies=6
-  8, "Support", duration=12, dependencies=7
-  9, "Training", duration=1.5, dependencies=6, notBefore=10
+  8, "Support", duration=12, dependencies=FF7
+  9, "Training", duration=1.5, dependencies=SS6, notBefore=10
+  10, "Wrap-up Window", duration=1, dependencies=SS6 FF8
 ----
 ```
 ```
@@ -47,5 +48,12 @@ Indented activities are treated as part of the group defined by the previous non
 When a group contains more than one descendant task (including milestones), the group row renders a thinner summary bar spanning from the earliest descendant start to the latest descendant end. The summary bar fill and its end markers use `gantt-marker-color`.
 
 The tasks will be aligned according to the dependencies.
+
+Dependency tokens can optionally be prefixed:
+
+- `SS<id>`: Start-to-Start (task start is constrained to be >= dependency start)
+- `FF<id>`: Finish-to-Finish (task end is constrained to be >= dependency end)
+
+If a task has both `SS` and `FF` dependencies in the same `dependencies` list, its configured `duration` is ignored and derived from the constraints.
 
 The colors and fonts to use will be picked up from the theme.
