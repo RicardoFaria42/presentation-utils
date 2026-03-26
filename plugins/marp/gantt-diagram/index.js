@@ -40,12 +40,10 @@ function parseGanttBlock(content) {
 
   const activities = applyGrouping(rawEntries);
   const computed = computeSchedule(activities);
-  const totalUnits = Math.max(
-    0,
-    ...computed.map((activity) => activity.end || 0),
-  );
+  const totalUnits = Math.max(0, ...computed.map((activity) => activity.end || 0));
+  const columns = Math.max(1, Math.ceil(totalUnits));
 
-  return { period, activities: computed, totalUnits, groupBars };
+  return { period, activities: computed, totalUnits, columns, groupBars };
 }
 
 function parseActivity(line) {
@@ -61,13 +59,14 @@ function parseActivity(line) {
   let notBeforeSlot = null;
 
   for (const extra of extras) {
-    if (/^duration\s*=\s*(\d+)$/.test(extra)) {
-      duration = parseInt(RegExp.$1, 10);
+    if (/^duration\s*=\s*([0-9]*\.?[0-9]+)$/.test(extra)) {
+      const value = parseFloat(RegExp.$1);
+      if (Number.isFinite(value)) duration = value;
     } else if (/^dependencies\s*=\s*(.+)$/.test(extra)) {
       dependencies = RegExp.$1.split(/[\s,;]+/).map((dep) => dep.trim());
-    } else if (/^notBefore\s*=\s*(\d+)$/.test(extra)) {
-      const value = parseInt(RegExp.$1, 10);
-      if (!Number.isNaN(value)) notBeforeSlot = Math.max(1, value);
+    } else if (/^notBefore\s*=\s*([0-9]*\.?[0-9]+)$/.test(extra)) {
+      const value = parseFloat(RegExp.$1);
+      if (Number.isFinite(value)) notBeforeSlot = Math.max(1, value);
     }
   }
 
@@ -206,7 +205,7 @@ function computeSchedule(activities) {
   return ordered;
 }
 
-function renderSvg(activities, totalUnits, period, groupBars, options) {
+function renderSvg(activities, totalUnits, columns, period, groupBars, options) {
   const fontSize = options.fontSize || 12;
   let cellWidth = options.cellWidth || 28;
   const rowHeight = options.rowHeight || 26;
@@ -231,6 +230,7 @@ function renderSvg(activities, totalUnits, period, groupBars, options) {
   const bottomPadding = 12;
 
   const normalizedTotal = Math.max(totalUnits, 1);
+  const normalizedColumns = Math.max(columns || 1, 1);
   const periodLabel = (() => {
     const key = String(period || "").toLowerCase();
     if (key === "week") return "W";
@@ -241,13 +241,13 @@ function renderSvg(activities, totalUnits, period, groupBars, options) {
 
   const periodCellPadding = 6;
   const maxPeriodLabelLength =
-    periodLabel.length + String(normalizedTotal).length;
+    periodLabel.length + String(normalizedColumns).length;
   const minCellWidth = Math.floor(
     maxPeriodLabelLength * (fontSize * 0.7) + periodCellPadding * 2,
   );
   cellWidth = Math.max(cellWidth, minCellWidth);
 
-  const gridWidth = (normalizedTotal + 1) * cellWidth;
+  const gridWidth = (normalizedColumns + 1) * cellWidth;
   const width = leftPadding + labelColWidth + gridWidth + rightPadding;
 
   const indentWidth = 14;
@@ -275,7 +275,7 @@ function renderSvg(activities, totalUnits, period, groupBars, options) {
     `  <text x="${leftPadding + 4}" y="${headerY}" font-size="${fontSize}" font-weight="700" class="header">Activity</text>`,
   );
 
-  for (let idx = 0; idx < normalizedTotal; idx += 1) {
+  for (let idx = 0; idx < normalizedColumns; idx += 1) {
     const label = `${periodLabel}${idx + 1}`;
     const x = leftPadding + labelColWidth + idx * cellWidth + cellWidth;
     svgLines.push(
@@ -289,7 +289,7 @@ function renderSvg(activities, totalUnits, period, groupBars, options) {
     `  <line x1="${leftPadding + labelColWidth}" y1="${topPadding}" x2="${leftPadding + labelColWidth}" y2="${gridBottom}" stroke="${gridColor}"/>`,
   );
 
-  for (let idx = 1; idx <= normalizedTotal; idx += 1) {
+  for (let idx = 1; idx <= normalizedColumns; idx += 1) {
     if (idx % 5 !== 0) continue;
     const x =
       leftPadding + labelColWidth + idx * cellWidth + Math.floor(cellWidth / 2);
@@ -446,9 +446,8 @@ function diamondPoints(centerX, centerY, width) {
 }
 
 function generateSvg(content, _env, opts) {
-  const { period, activities, totalUnits, groupBars } =
-    parseGanttBlock(content);
-  const svg = renderSvg(activities, totalUnits, period, groupBars, opts || {});
+  const { period, activities, totalUnits, columns, groupBars } = parseGanttBlock(content);
+  const svg = renderSvg(activities, totalUnits, columns, period, groupBars, opts || {});
   return svg;
 }
 

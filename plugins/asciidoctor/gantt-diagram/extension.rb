@@ -55,7 +55,7 @@ module PresentationUtils
         activities = apply_grouping(raw_entries)
 
         computed = compute_schedule(activities)
-        total_units = computed.map { |activity| activity[:end] }.max || 0
+        total_units = computed.map { |activity| activity[:end] }.max || 0.0
 
         create_block parent, :open, nil, attrs.merge({
           'role' => 'gantt-diagram',
@@ -81,16 +81,16 @@ module PresentationUtils
         not_before_slot = nil
 
         extras.each do |extra|
-          if extra =~ /\Aduration\s*=\s*(\d+)\z/
-            duration = Regexp.last_match(1).to_i
+          if extra =~ /\Aduration\s*=\s*([0-9]*\.?[0-9]+)\z/
+            duration = Regexp.last_match(1).to_f
           elsif extra =~ /\Adependencies\s*=\s*(.+)\z/
             dependencies = Regexp.last_match(1)
               .split(/[\s,;]+/)
               .map(&:strip)
               .reject(&:empty?)
-          elsif extra =~ /\AnotBefore\s*=\s*(\d+)\z/
-            not_before_slot = Regexp.last_match(1).to_i
-            not_before_slot = 1 if not_before_slot < 1
+          elsif extra =~ /\AnotBefore\s*=\s*([0-9]*\.?[0-9]+)\z/
+            not_before_slot = Regexp.last_match(1).to_f
+            not_before_slot = 1.0 if not_before_slot < 1.0
           end
         end
 
@@ -120,10 +120,10 @@ module PresentationUtils
             next false unless deps_ends.size == deps.size
 
             deps_start_at = deps_ends.max || 0
-            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_i - 1) : 0
+            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_f - 1.0) : 0.0
             start_at = [deps_start_at, not_before_start_at].max
             activity[:start] = start_at
-            duration = activity[:is_milestone] ? 0 : activity[:duration]
+            duration = activity[:is_milestone] ? 0.0 : (activity[:duration] || 0.0)
             activity[:end] = start_at + duration
             resolved[activity[:id]] = activity
             progressed = true
@@ -140,13 +140,13 @@ module PresentationUtils
             activity[:duration] = 0
             activity[:has_group_bar] = false
           elsif activity[:is_milestone]
-            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_i - 1) : 0
+            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_f - 1.0) : 0.0
             activity[:start] = not_before_start_at
             activity[:end] = not_before_start_at
           else
-            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_i - 1) : 0
+            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_f - 1.0) : 0.0
             activity[:start] = not_before_start_at
-            activity[:end] = not_before_start_at + activity[:duration]
+            activity[:end] = not_before_start_at + (activity[:duration] || 0.0)
           end
           resolved[activity[:id]] = activity
         end
@@ -168,8 +168,8 @@ module PresentationUtils
           tasks = descendants.reject { |entry| entry[:is_group] }
 
           if tasks.size >= 1
-            group_start = tasks.map { |t| t[:start].to_i }.min
-            group_end = tasks.map { |t| t[:end].to_i }.max
+            group_start = tasks.map { |t| t[:start].to_f }.min
+            group_end = tasks.map { |t| t[:end].to_f }.max
 
             activity[:start] = group_start
             activity[:end] = group_end
@@ -306,7 +306,8 @@ module PresentationUtils
         right_padding = 12
         bottom_padding = 12
 
-        total_units = [total_units, 1].max
+        total_units = [total_units.to_f, 1.0].max
+        columns = [total_units.ceil, 1].max
         period_label = case period.to_s.downcase
                        when "week" then "W"
                        when "day" then "D"
@@ -314,11 +315,11 @@ module PresentationUtils
                        else period.to_s[0].to_s.upcase
                        end
         period_cell_padding = 6
-        max_period_label_length = period_label.length + total_units.to_s.length
+        max_period_label_length = period_label.length + columns.to_s.length
         min_cell_width = (max_period_label_length * (font_size * 0.7) + (period_cell_padding * 2)).to_i
         cell_width = [cell_width, min_cell_width].max
 
-        grid_width = (total_units+1) * cell_width
+        grid_width = (columns + 1) * cell_width
         width = left_padding + label_col_width + grid_width + right_padding
 
         indent_width = 14
@@ -338,7 +339,7 @@ module PresentationUtils
         header_y = top_padding + (header_height / 2) + (font_size / 2) - 2
         svg_lines << "  <text x=\"#{left_padding + 4}\" y=\"#{header_y}\" font-family=\"#{font_family}\" font-size=\"#{font_size}\" font-weight=\"700\" fill=\"#{header_fg}\">Activity</text>"
 
-        total_units.times do |idx|
+        columns.times do |idx|
           label = "#{period_label}#{idx + 1}"
           x = left_padding + label_col_width + (idx * cell_width) + (cell_width)
           svg_lines << "  <text x=\"#{x}\" y=\"#{header_y}\" text-anchor=\"middle\" font-family=\"#{font_family}\" font-size=\"#{font_size}\" font-weight=\"700\" fill=\"#{header_fg}\">#{escape_xml(label)}</text>"
@@ -349,7 +350,7 @@ module PresentationUtils
 
         svg_lines << "  <line x1=\"#{left_padding + label_col_width}\" y1=\"#{top_padding}\" x2=\"#{left_padding + label_col_width}\" y2=\"#{grid_bottom}\" stroke=\"#{grid_color}\"/>"
 
-        (1..total_units).each do |idx|
+        (1..columns).each do |idx|
           next unless (idx % 5).zero?
 
           x = left_padding + label_col_width + (idx * cell_width) + cell_width/2
