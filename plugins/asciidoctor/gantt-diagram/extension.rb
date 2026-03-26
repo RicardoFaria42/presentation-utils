@@ -78,6 +78,7 @@ module PresentationUtils
 
         duration = nil
         dependencies = []
+        dependency_tokens = []
         not_before_slot = nil
 
         extras.each do |extra|
@@ -88,6 +89,9 @@ module PresentationUtils
               .split(/[\s,;]+/)
               .map(&:strip)
               .reject(&:empty?)
+            dependency_tokens = dependencies
+              .map { |dep| parse_dependency_token(dep) }
+              .compact
           elsif extra =~ /\AnotBefore\s*=\s*([0-9]*\.?[0-9]+)\z/
             not_before_slot = Regexp.last_match(1).to_f
             not_before_slot = 1.0 if not_before_slot < 1.0
@@ -99,8 +103,23 @@ module PresentationUtils
           label: label,
           duration: duration,
           dependencies: dependencies,
+          dependency_tokens: dependency_tokens,
           not_before_slot: not_before_slot
         }
+      end
+
+      def parse_dependency_token(raw)
+        token = raw.to_s.strip
+        return nil if token.empty?
+
+        match = token.match(/\A(ss|ff)(.+)\z/i)
+        if match
+          id = match[2].to_s.strip
+          return nil if id.empty?
+          return { type: match[1].upcase, id: id }
+        end
+
+        { type: "FS", id: token }
       end
 
       def compute_schedule(activities)
