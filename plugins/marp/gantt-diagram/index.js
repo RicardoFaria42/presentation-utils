@@ -1,5 +1,19 @@
 "use strict";
 
+function parseDependencyToken(raw) {
+  const token = String(raw || "").trim();
+  if (!token) return null;
+
+  const match = token.match(/^(ss|ff)(.+)$/i);
+  if (match) {
+    const id = String(match[2] || "").trim();
+    if (!id) return null;
+    return { type: match[1].toUpperCase(), id };
+  }
+
+  return { type: "FS", id: token };
+}
+
 function parseGanttBlock(content) {
   const lines = content.split(/\r?\n/);
   let period = "week";
@@ -56,6 +70,7 @@ function parseActivity(line) {
 
   let duration = null;
   let dependencies = [];
+  let dependencyTokens = [];
   let notBeforeSlot = null;
 
   for (const extra of extras) {
@@ -63,14 +78,18 @@ function parseActivity(line) {
       const value = parseFloat(RegExp.$1);
       if (Number.isFinite(value)) duration = value;
     } else if (/^dependencies\s*=\s*(.+)$/.test(extra)) {
-      dependencies = RegExp.$1.split(/[\s,;]+/).map((dep) => dep.trim());
+      dependencies = RegExp.$1
+        .split(/[\s,;]+/)
+        .map((dep) => dep.trim())
+        .filter(Boolean);
+      dependencyTokens = dependencies.map(parseDependencyToken).filter(Boolean);
     } else if (/^notBefore\s*=\s*([0-9]*\.?[0-9]+)$/.test(extra)) {
       const value = parseFloat(RegExp.$1);
       if (Number.isFinite(value)) notBeforeSlot = Math.max(1, value);
     }
   }
 
-  return { id, label, duration, dependencies, notBeforeSlot };
+  return { id, label, duration, dependencies, dependencyTokens, notBeforeSlot };
 }
 
 function applyGrouping(entries) {
