@@ -48,4 +48,11 @@ When a group contains more than one descendant task (including milestones), the 
 
 The tasks will be aligned according to the dependencies.
 
+Dependency tokens can optionally be prefixed:
+
+- `SS<id>`: Start-to-Start (task start is constrained to be >= dependency start)
+- `FF<id>`: Finish-to-Finish (task end is constrained to be >= dependency end)
+
+If a task has both `SS` and `FF` dependencies in the same `dependencies` list, its configured `duration` is ignored and derived from the constraints.
+
 The colors and fonts to use will be picked up from the theme.

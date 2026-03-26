@@ -11,6 +11,7 @@ period: "week"
 activities:
   1, "Planning"
     2, "Analysis", duration=3, dependencies=1
+    2.1, "Kickoff", duration=1, dependencies=SS2
     3, "Requirements", duration=2, dependencies=2
   4, "Delivery"
     5, "Development", duration=6, dependencies=4
