@@ -78,6 +78,7 @@ module PresentationUtils
 
         duration = nil
         dependencies = []
+        not_before_slot = nil
 
         extras.each do |extra|
           if extra =~ /\Aduration\s*=\s*(\d+)\z/
@@ -87,6 +88,9 @@ module PresentationUtils
               .split(/[\s,;]+/)
               .map(&:strip)
               .reject(&:empty?)
+          elsif extra =~ /\AnotBefore\s*=\s*(\d+)\z/
+            not_before_slot = Regexp.last_match(1).to_i
+            not_before_slot = 1 if not_before_slot < 1
           end
         end
 
@@ -94,7 +98,8 @@ module PresentationUtils
           id: id,
           label: label,
           duration: duration,
-          dependencies: dependencies
+          dependencies: dependencies,
+          not_before_slot: not_before_slot
         }
       end
 
