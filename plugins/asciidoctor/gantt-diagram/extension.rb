@@ -119,7 +119,9 @@ module PresentationUtils
 
             next false unless deps_ends.size == deps.size
 
-            start_at = deps_ends.max || 0
+            deps_start_at = deps_ends.max || 0
+            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_i - 1) : 0
+            start_at = [deps_start_at, not_before_start_at].max
             activity[:start] = start_at
             duration = activity[:is_milestone] ? 0 : activity[:duration]
             activity[:end] = start_at + duration
@@ -138,11 +140,13 @@ module PresentationUtils
             activity[:duration] = 0
             activity[:has_group_bar] = false
           elsif activity[:is_milestone]
-            activity[:start] = 0
-            activity[:end] = 0
+            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_i - 1) : 0
+            activity[:start] = not_before_start_at
+            activity[:end] = not_before_start_at
           else
-            activity[:start] = 0
-            activity[:end] = activity[:duration]
+            not_before_start_at = activity[:not_before_slot] ? (activity[:not_before_slot].to_i - 1) : 0
+            activity[:start] = not_before_start_at
+            activity[:end] = not_before_start_at + activity[:duration]
           end
           resolved[activity[:id]] = activity
         end
