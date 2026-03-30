@@ -24,6 +24,10 @@ module PresentationUtils
         in_activities = false
         raw_entries = []
 
+        completion_by_id = {}
+        has_completion_section = false
+        in_completion = false
+
         lines.each do |line|
           stripped = line.strip
           next if stripped.empty?
@@ -42,14 +46,28 @@ module PresentationUtils
 
           if stripped.start_with?("activities:")
             in_activities = true
+            in_completion = false
             next
           end
 
-          next unless in_activities
+          if stripped.start_with?("completion:")
+            in_activities = false
+            in_completion = true
+            has_completion_section = true
+            next
+          end
 
-          indent = line[/\A[\t ]*/].to_s.gsub("\t", "  ").length
-          activity = parse_activity(stripped)
-          raw_entries << {indent: indent, activity: activity} if activity
+          if in_activities
+            indent = line[/\A[\t ]*/].to_s.gsub("\t", "  ").length
+            activity = parse_activity(stripped)
+            raw_entries << {indent: indent, activity: activity} if activity
+            next
+          end
+
+          if in_completion
+            entry = parse_completion_entry(stripped)
+            completion_by_id[entry[:id]] = entry[:value] if entry
+          end
         end
 
         activities = apply_grouping(raw_entries)
@@ -66,8 +84,25 @@ module PresentationUtils
             'period' => period,
             'group-bars' => group_bars,
             'total-units' => total_units,
+            'completion-by-id' => completion_by_id,
+            'has-completion-section' => has_completion_section,
           }
         })
+      end
+
+      def parse_completion_entry(line)
+        match = line.to_s.match(/\A([^\s,]+)\s*,\s*([+-]?[0-9]*\.?[0-9]+%?)\s*\z/)
+        return nil unless match
+
+        id = match[1]
+        raw = match[2]
+
+        if raw.end_with?("%")
+          value = raw[0..-2].to_f
+          return { id: id, value: { kind: "percent", value: value } }
+        end
+
+        { id: id, value: { kind: "absolute", value: raw.to_f } }
       end
 
       def build_group_descendants(activities)
@@ -338,7 +373,15 @@ module PresentationUtils
                         end
 
           FileUtils.mkdir_p(File.dirname(output_path))
-          svg = render_svg(document, data["activities"], data["total-units"], data["period"], data["group-bars"])
+          svg = render_svg(
+            document,
+            data["activities"],
+            data["total-units"],
+            data["period"],
+            data["group-bars"],
+            data["completion-by-id"],
+            data["has-completion-section"],
+          )
           File.write(output_path, svg)
 
           render_image = ::Asciidoctor::Block.new(
@@ -368,7 +411,7 @@ module PresentationUtils
         normalized
       end
 
-      def render_svg(document, activities, total_units, period, group_bars)
+      def render_svg(document, activities, total_units, period, group_bars, completion_by_id, has_completion_section)
         font_family = get_setting(document, "gantt-font-family", :gantt_font_family,  document.attr("base-font-family"))
         font_size = get_setting(document, "gantt-font-size", :gantt_font_size, 12).to_i
         cell_width = get_setting(document, "gantt-cell-width", :gantt_cell_width, 28).to_i
@@ -378,6 +421,7 @@ module PresentationUtils
         grid_color = get_setting(document, "gantt-grid-color", :gantt_grid_color, "#d8d8d8")
         bar_color = get_setting(document, "gantt-bar-color", :gantt_bar_color, "#4b8bbf")
         marker_color = get_setting(document, "gantt-marker-color", :gantt_marker_color, "#000000")
+        completion_color = get_setting(document, "gantt-completion-color", :gantt_completion_color, "#ff0000")
         header_fg = get_setting(document, "gantt-header-fg", :gantt_header_fg, "#ffffff")
         header_bg = get_setting(document, "gantt-header-bg", :gantt_header_bg, "#f5f5f5")
 
@@ -464,13 +508,20 @@ module PresentationUtils
           bar_y = row_y + ((row_height - bar_height) / 2)
           start_x = left_padding + label_col_width + (activity[:start] * cell_width) + cell_width/2
 
+          completion_offset_units = completion_offset_units(activity, completion_by_id, has_completion_section)
+
           if activity[:is_group]
             if (activity[:has_group_bar] && group_bars != "none") || group_bars =="all"
               group_bar_height = [2, (bar_height * 0.5).to_i].max
 
               width = (activity[:duration] * cell_width)
 
-              group_bar(svg_lines, start_x, bar_y, width, group_bar_height, marker_color, marker_color)
+              completion_offset = start_x
+              if !completion_offset_units.nil?
+                completion_offset = start_x + (completion_offset_units * cell_width)
+              end
+
+              group_bar(svg_lines, start_x, bar_y, width, group_bar_height, marker_color, marker_color, completion_offset, completion_color)
             end
             next
           end
@@ -484,11 +535,37 @@ module PresentationUtils
 
           end_x = start_x + (activity[:duration] * cell_width)
 
-          task_bar(svg_lines, start_x, bar_y, end_x-start_x, bar_height, bar_color, marker_color)
+          completion_offset = start_x
+          if !completion_offset_units.nil?
+            completion_offset = start_x + (completion_offset_units * cell_width)
+          end
+
+          task_bar(svg_lines, start_x, bar_y, end_x-start_x, bar_height, bar_color, marker_color, completion_offset, completion_color)
+
         end
 
         svg_lines << "</svg>"
         svg_lines.join("\n")
+      end
+
+      def completion_offset_units(activity, completion_by_id, has_completion_section)
+        return nil unless has_completion_section
+        return nil if activity[:is_milestone]
+
+        completion = (completion_by_id || {})[activity[:id]]
+        completion = { "kind" => "absolute", "value" => 0.0 } if completion.nil?
+
+        duration = [0.0, (activity[:duration] || 0.0).to_f].max
+        kind = completion[:kind] || completion["kind"]
+        value = completion[:value] || completion["value"]
+        offset = if kind.to_s == "percent"
+                   duration * (value.to_f / 100.0)
+                 else
+                   value.to_f
+                 end
+
+        offset = 0.0 unless offset.finite?
+        [[offset, 0.0].max, duration].min
       end
 
       def get_setting(document, attr_name, theme_name, default)
@@ -528,23 +605,31 @@ module PresentationUtils
         rows
       end
 
-      def group_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color)
+      def group_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color, completion_offset, completion_color)
           marker_width = [6, (bar_height * 0.8).to_i].max
           marker_height = (bar_height * 1.5).to_i
           marker_tip = [3, (marker_height * 0.35).to_i].max
 
           svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{bar_height}\" fill=\"#{bar_color}\"/>"
+          if completion_offset != start_x
+            center_y = bar_y + bar_height + 1.5
+            svg_lines << "  <line x1=\"#{start_x}\" y1=\"#{center_y}\" x2=\"#{completion_offset}\" y2=\"#{center_y}\" stroke=\"#{completion_color}\" stroke-width=\"3\"/>"
+          end
           svg_lines << "  <polygon points=\"#{marker_points(start_x, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
           svg_lines << "  <polygon points=\"#{marker_points(start_x + width, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
       end
 
-      def task_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color)
+      def task_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color, completion_offset, completion_color)
 
           marker_width = [6, (bar_height * 0.8).to_i].max
           marker_height = [8, (bar_height * 0.9).to_i].max
           marker_tip = [3, (marker_height * 0.35).to_i].max
 
-          svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{bar_height}\" fill=\"#{bar_color}\"/>"
+          svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{marker_height}\" fill=\"#{bar_color}\"/>"
+          if completion_offset != start_x
+            center_y = bar_y + marker_height - marker_tip + 2
+            svg_lines << "  <line x1=\"#{start_x}\" y1=\"#{center_y}\" x2=\"#{completion_offset}\" y2=\"#{center_y}\" stroke=\"#{completion_color}\" stroke-width=\"4\"/>"
+          end
           svg_lines << "  <polygon points=\"#{marker_points(start_x, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
           svg_lines << "  <polygon points=\"#{marker_points(start_x + width, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
       end

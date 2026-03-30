@@ -14,12 +14,35 @@ function parseDependencyToken(raw) {
   return { type: "FS", id: token };
 }
 
+function parseCompletionEntry(line) {
+  const match = String(line || "").match(
+    /^([^\s,]+)\s*,\s*([+-]?[0-9]*\.?[0-9]+%?)\s*$/,
+  );
+  if (!match) return null;
+
+  const id = match[1];
+  const rawValue = match[2];
+
+  if (rawValue.endsWith("%")) {
+    const value = parseFloat(rawValue.slice(0, -1));
+    if (!Number.isFinite(value)) return null;
+    return { id, value: { kind: "percent", value } };
+  }
+
+  const value = parseFloat(rawValue);
+  if (!Number.isFinite(value)) return null;
+  return { id, value: { kind: "absolute", value } };
+}
+
 function parseGanttBlock(content) {
   const lines = content.split(/\r?\n/);
   let period = "week";
   let inActivities = false;
+  let inCompletion = false;
   let groupBars = "all";
   const rawEntries = [];
+  const completionById = {};
+  let hasCompletionSection = false;
 
   for (const line of lines) {
     const stripped = line.trim();
@@ -39,26 +62,51 @@ function parseGanttBlock(content) {
 
     if (stripped.startsWith("activities:")) {
       inActivities = true;
+      inCompletion = false;
       continue;
     }
 
-    if (!inActivities) continue;
+    if (stripped.startsWith("completion:")) {
+      inActivities = false;
+      inCompletion = true;
+      hasCompletionSection = true;
+      continue;
+    }
 
-    const indent = (line.match(/^[\t ]*/) || [""])[0].replace(
-      /\t/g,
-      "  ",
-    ).length;
-    const activity = parseActivity(stripped);
-    if (activity) rawEntries.push({ indent, activity });
+    if (inActivities) {
+      const indent = (line.match(/^[\t ]*/) || [""])[0].replace(
+        /\t/g,
+        "  ",
+      ).length;
+      const activity = parseActivity(stripped);
+      if (activity) rawEntries.push({ indent, activity });
+      continue;
+    }
+
+    if (inCompletion) {
+      const entry = parseCompletionEntry(stripped);
+      if (entry) completionById[entry.id] = entry.value;
+    }
   }
 
   const activities = applyGrouping(rawEntries);
   const groupDescendants = buildGroupDescendants(activities);
   const computed = computeSchedule(activities, groupDescendants);
-  const totalUnits = Math.max(0, ...computed.map((activity) => activity.end || 0));
+  const totalUnits = Math.max(
+    0,
+    ...computed.map((activity) => activity.end || 0),
+  );
   const columns = Math.max(1, Math.ceil(totalUnits));
 
-  return { period, activities: computed, totalUnits, columns, groupBars };
+  return {
+    period,
+    activities: computed,
+    totalUnits,
+    columns,
+    groupBars,
+    completionById,
+    hasCompletionSection,
+  };
 }
 
 function buildGroupDescendants(activities) {
@@ -287,7 +335,14 @@ function computeSchedule(activities, groupDescendants) {
   return ordered;
 }
 
-function renderSvg(activities, totalUnits, columns, period, groupBars, options) {
+function renderSvg(
+  activities,
+  totalUnits,
+  columns,
+  period,
+  groupBars,
+  options,
+) {
   const fontSize = options.fontSize || 12;
   let cellWidth = options.cellWidth || 28;
   const rowHeight = options.rowHeight || 26;
@@ -381,6 +436,35 @@ function renderSvg(activities, totalUnits, columns, period, groupBars, options) 
   }
 
   let currentY = gridTop;
+  const completionById = (options && options.completionById) || {};
+  const hasCompletionSection =
+    options &&
+    Object.prototype.hasOwnProperty.call(options, "hasCompletionSection")
+      ? Boolean(options.hasCompletionSection)
+      : false;
+
+  const completionXOffset = (activity) => {
+    if (!hasCompletionSection) return null;
+    if (!activity || activity.isMilestone) return null;
+
+    const completion = completionById[activity.id] || {
+      kind: "absolute",
+      value: 0,
+    };
+
+    const duration = Math.max(0, Number(activity.duration || 0));
+    let offset = 0;
+    if (completion.kind === "percent") {
+      offset = duration * (Number(completion.value || 0) / 100);
+    } else {
+      offset = Number(completion.value || 0);
+    }
+
+    if (!Number.isFinite(offset)) offset = 0;
+    offset = Math.max(0, Math.min(duration, offset));
+    return offset * cellWidth;
+  };
+
   rows.forEach((row, _index) => {
     const rowY = currentY;
     currentY += row.height;
@@ -410,13 +494,13 @@ function renderSvg(activities, totalUnits, columns, period, groupBars, options) 
       Math.floor(cellWidth / 2);
 
     if (activity.isGroup) {
-      if (
-        (activity.hasGroupBar && groupBars !== "none") ||
-        groupBars === "all"
-      ) {
+      const shouldRenderGroupBar =
+        (activity.hasGroupBar && groupBars !== "none") || groupBars === "all";
+      if (shouldRenderGroupBar) {
         const groupBarHeight = Math.max(2, Math.floor(barHeight / 2));
         const width = activity.duration * cellWidth;
-        groupBar(svgLines, startX, barY, width, groupBarHeight);
+        const offsetX = completionXOffset(activity);
+        groupBar(svgLines, startX, barY, width, groupBarHeight, offsetX);
       }
       return;
     }
@@ -432,7 +516,8 @@ function renderSvg(activities, totalUnits, columns, period, groupBars, options) 
     }
 
     const widthValue = activity.duration * cellWidth;
-    taskBar(svgLines, startX, barY, widthValue, barHeight);
+    const offsetX = completionXOffset(activity);
+    taskBar(svgLines, startX, barY, widthValue, barHeight, offsetX);
   });
 
   svgLines.push("</svg>");
@@ -469,7 +554,7 @@ function buildRows(activities, rowHeight, separatorHeight) {
   return rows;
 }
 
-function groupBar(svgLines, startX, barY, width, barHeight) {
+function groupBar(svgLines, startX, barY, width, barHeight, offsetX) {
   const markerWidth = Math.max(6, Math.floor(barHeight * 0.8));
   const markerHeight = Math.max(8, Math.floor(barHeight * 1.5));
   const markerTip = Math.max(3, Math.floor(markerHeight * 0.35));
@@ -477,6 +562,13 @@ function groupBar(svgLines, startX, barY, width, barHeight) {
   svgLines.push(
     `  <rect x="${startX}" y="${barY}" width="${width}" height="${barHeight}" class="group-bar"/>`,
   );
+  if (offsetX !== null) {
+    const x = startX + offsetX;
+    const centerY = barY + barHeight + 1.5;
+    svgLines.push(
+      `  <line x1="${startX}" y1="${centerY}" x2="${x}" y2="${centerY}" class="gantt-completion-color" stroke-width="3"/>`,
+    );
+  }
   svgLines.push(
     `  <polygon points="${markerPoints(startX, barY, markerWidth, markerHeight, markerTip)}" class="marker"/>`,
   );
@@ -485,14 +577,21 @@ function groupBar(svgLines, startX, barY, width, barHeight) {
   );
 }
 
-function taskBar(svgLines, startX, barY, width, barHeight) {
+function taskBar(svgLines, startX, barY, width, barHeight, offsetX) {
   const markerWidth = Math.max(6, Math.floor(barHeight * 0.8));
   const markerHeight = Math.max(8, Math.floor(barHeight * 0.9));
   const markerTip = Math.max(3, Math.floor(markerHeight * 0.35));
 
   svgLines.push(
-    `  <rect x="${startX}" y="${barY}" width="${width}" height="${barHeight}" class="bar"/>`,
+    `  <rect x="${startX}" y="${barY}" width="${width}" height="${markerHeight}" class="bar"/>`,
   );
+  if (offsetX !== null) {
+    const x = startX + offsetX;
+    const centerY = barY + markerHeight - markerTip / 2;
+    svgLines.push(
+      `  <line x1="${startX}" y1="${centerY}" x2="${x}" y2="${centerY}" class="gantt-completion-color" stroke-width="${markerTip}"/>`,
+    );
+  }
   svgLines.push(
     `  <polygon points="${markerPoints(startX, barY, markerWidth, markerHeight, markerTip)}" class="marker"/>`,
   );
@@ -528,8 +627,20 @@ function diamondPoints(centerX, centerY, width) {
 }
 
 function generateSvg(content, _env, opts) {
-  const { period, activities, totalUnits, columns, groupBars } = parseGanttBlock(content);
-  const svg = renderSvg(activities, totalUnits, columns, period, groupBars, opts || {});
+  const {
+    period,
+    activities,
+    totalUnits,
+    columns,
+    groupBars,
+    completionById,
+    hasCompletionSection,
+  } = parseGanttBlock(content);
+  const svg = renderSvg(activities, totalUnits, columns, period, groupBars, {
+    ...(opts || {}),
+    completionById,
+    hasCompletionSection,
+  });
   return svg;
 }
 
