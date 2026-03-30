@@ -28,6 +28,11 @@ activities:
   8, "Support", duration=12, dependencies=FF6.1
   9, "Training", duration=1.5, dependencies=SS6, notBefore=10
   10, "Wrap-up Window", duration=1, dependencies=SS6.1 FF8
+completion:
+  1, 80%
+  2, 1
+  5, 25%
+  6.1, 1
 ```
 
 ---
