@@ -625,7 +625,7 @@ module PresentationUtils
           marker_height = [8, (bar_height * 0.9).to_i].max
           marker_tip = [3, (marker_height * 0.35).to_i].max
 
-          svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{bar_height}\" fill=\"#{bar_color}\"/>"
+          svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{marker_height}\" fill=\"#{bar_color}\"/>"
           if completion_offset != start_x
             center_y = bar_y + marker_height - marker_tip + 2
             svg_lines << "  <line x1=\"#{start_x}\" y1=\"#{center_y}\" x2=\"#{completion_offset}\" y2=\"#{center_y}\" stroke=\"#{completion_color}\" stroke-width=\"4\"/>"
