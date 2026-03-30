@@ -14,12 +14,35 @@ function parseDependencyToken(raw) {
   return { type: "FS", id: token };
 }
 
+function parseCompletionEntry(line) {
+  const match = String(line || "").match(
+    /^([^\s,]+)\s*,\s*([+-]?[0-9]*\.?[0-9]+%?)\s*$/,
+  );
+  if (!match) return null;
+
+  const id = match[1];
+  const rawValue = match[2];
+
+  if (rawValue.endsWith("%")) {
+    const value = parseFloat(rawValue.slice(0, -1));
+    if (!Number.isFinite(value)) return null;
+    return { id, value: { kind: "percent", value } };
+  }
+
+  const value = parseFloat(rawValue);
+  if (!Number.isFinite(value)) return null;
+  return { id, value: { kind: "absolute", value } };
+}
+
 function parseGanttBlock(content) {
   const lines = content.split(/\r?\n/);
   let period = "week";
   let inActivities = false;
+  let inCompletion = false;
   let groupBars = "all";
   const rawEntries = [];
+  const completionById = {};
+  let hasCompletionSection = false;
 
   for (const line of lines) {
     const stripped = line.trim();
@@ -39,17 +62,31 @@ function parseGanttBlock(content) {
 
     if (stripped.startsWith("activities:")) {
       inActivities = true;
+      inCompletion = false;
       continue;
     }
 
-    if (!inActivities) continue;
+    if (stripped.startsWith("completion:")) {
+      inActivities = false;
+      inCompletion = true;
+      hasCompletionSection = true;
+      continue;
+    }
 
-    const indent = (line.match(/^[\t ]*/) || [""])[0].replace(
-      /\t/g,
-      "  ",
-    ).length;
-    const activity = parseActivity(stripped);
-    if (activity) rawEntries.push({ indent, activity });
+    if (inActivities) {
+      const indent = (line.match(/^[\t ]*/) || [""])[0].replace(
+        /\t/g,
+        "  ",
+      ).length;
+      const activity = parseActivity(stripped);
+      if (activity) rawEntries.push({ indent, activity });
+      continue;
+    }
+
+    if (inCompletion) {
+      const entry = parseCompletionEntry(stripped);
+      if (entry) completionById[entry.id] = entry.value;
+    }
   }
 
   const activities = applyGrouping(rawEntries);
@@ -58,7 +95,15 @@ function parseGanttBlock(content) {
   const totalUnits = Math.max(0, ...computed.map((activity) => activity.end || 0));
   const columns = Math.max(1, Math.ceil(totalUnits));
 
-  return { period, activities: computed, totalUnits, columns, groupBars };
+  return {
+    period,
+    activities: computed,
+    totalUnits,
+    columns,
+    groupBars,
+    completionById,
+    hasCompletionSection,
+  };
 }
 
 function buildGroupDescendants(activities) {
@@ -381,6 +426,34 @@ function renderSvg(activities, totalUnits, columns, period, groupBars, options) 
   }
 
   let currentY = gridTop;
+  const completionById = (options && options.completionById) || {};
+  const hasCompletionSection =
+    options && Object.prototype.hasOwnProperty.call(options, "hasCompletionSection")
+      ? Boolean(options.hasCompletionSection)
+      : false;
+
+  const completionXOffset = (activity) => {
+    if (!hasCompletionSection) return null;
+    if (!activity || activity.isMilestone) return null;
+
+    const completion = completionById[activity.id] || {
+      kind: "absolute",
+      value: 0,
+    };
+
+    const duration = Math.max(0, Number(activity.duration || 0));
+    let offset = 0;
+    if (completion.kind === "percent") {
+      offset = duration * (Number(completion.value || 0) / 100);
+    } else {
+      offset = Number(completion.value || 0);
+    }
+
+    if (!Number.isFinite(offset)) offset = 0;
+    offset = Math.max(0, Math.min(duration, offset));
+    return offset * cellWidth;
+  };
+
   rows.forEach((row, _index) => {
     const rowY = currentY;
     currentY += row.height;
@@ -410,13 +483,21 @@ function renderSvg(activities, totalUnits, columns, period, groupBars, options) 
       Math.floor(cellWidth / 2);
 
     if (activity.isGroup) {
-      if (
-        (activity.hasGroupBar && groupBars !== "none") ||
-        groupBars === "all"
-      ) {
+      const shouldRenderGroupBar =
+        (activity.hasGroupBar && groupBars !== "none") || groupBars === "all";
+      if (shouldRenderGroupBar) {
         const groupBarHeight = Math.max(2, Math.floor(barHeight / 2));
         const width = activity.duration * cellWidth;
         groupBar(svgLines, startX, barY, width, groupBarHeight);
+
+        const offsetX = completionXOffset(activity);
+        if (offsetX !== null) {
+          const x = startX + offsetX;
+          const centerY = barY + Math.floor(groupBarHeight / 2);
+          svgLines.push(
+            `  <line x1="${x}" y1="${centerY - 2}" x2="${x}" y2="${centerY + 2}" class="gantt-completion-color" stroke="#ff0000" stroke-width="2"/>`,
+          );
+        }
       }
       return;
     }
@@ -433,6 +514,15 @@ function renderSvg(activities, totalUnits, columns, period, groupBars, options) 
 
     const widthValue = activity.duration * cellWidth;
     taskBar(svgLines, startX, barY, widthValue, barHeight);
+
+    const offsetX = completionXOffset(activity);
+    if (offsetX !== null) {
+      const x = startX + offsetX;
+      const centerY = barY + Math.floor(barHeight / 2);
+      svgLines.push(
+        `  <line x1="${x}" y1="${centerY - 3}" x2="${x}" y2="${centerY + 3}" class="gantt-completion-color" stroke="#ff0000" stroke-width="2"/>`,
+      );
+    }
   });
 
   svgLines.push("</svg>");
@@ -528,8 +618,20 @@ function diamondPoints(centerX, centerY, width) {
 }
 
 function generateSvg(content, _env, opts) {
-  const { period, activities, totalUnits, columns, groupBars } = parseGanttBlock(content);
-  const svg = renderSvg(activities, totalUnits, columns, period, groupBars, opts || {});
+  const {
+    period,
+    activities,
+    totalUnits,
+    columns,
+    groupBars,
+    completionById,
+    hasCompletionSection,
+  } = parseGanttBlock(content);
+  const svg = renderSvg(activities, totalUnits, columns, period, groupBars, {
+    ...(opts || {}),
+    completionById,
+    hasCompletionSection,
+  });
   return svg;
 }
 
