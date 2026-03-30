@@ -516,13 +516,12 @@ module PresentationUtils
 
               width = (activity[:duration] * cell_width)
 
-              group_bar(svg_lines, start_x, bar_y, width, group_bar_height, marker_color, marker_color)
-
+              completion_offset = start_x
               if !completion_offset_units.nil?
-                x = start_x + (completion_offset_units * cell_width)
-                center_y = bar_y + (group_bar_height / 2.0)
-                svg_lines << "  <line x1=\"#{x}\" y1=\"#{center_y - 2}\" x2=\"#{x}\" y2=\"#{center_y + 2}\" stroke=\"#{completion_color}\" stroke-width=\"2\"/>"
+                completion_offset = start_x + (completion_offset_units * cell_width)
               end
+
+              group_bar(svg_lines, start_x, bar_y, width, group_bar_height, marker_color, marker_color, completion_offset, completion_color)
             end
             next
           end
@@ -536,13 +535,13 @@ module PresentationUtils
 
           end_x = start_x + (activity[:duration] * cell_width)
 
-          task_bar(svg_lines, start_x, bar_y, end_x-start_x, bar_height, bar_color, marker_color)
-
+          completion_offset = start_x
           if !completion_offset_units.nil?
-            x = start_x + (completion_offset_units * cell_width)
-            center_y = bar_y + (bar_height / 2.0)
-            svg_lines << "  <line x1=\"#{x}\" y1=\"#{center_y - 3}\" x2=\"#{x}\" y2=\"#{center_y + 3}\" stroke=\"#{completion_color}\" stroke-width=\"2\"/>"
+            completion_offset = start_x + (completion_offset_units * cell_width)
           end
+
+          task_bar(svg_lines, start_x, bar_y, end_x-start_x, bar_height, bar_color, marker_color, completion_offset, completion_color)
+
         end
 
         svg_lines << "</svg>"
@@ -606,23 +605,31 @@ module PresentationUtils
         rows
       end
 
-      def group_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color)
+      def group_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color, completion_offset, completion_color)
           marker_width = [6, (bar_height * 0.8).to_i].max
           marker_height = (bar_height * 1.5).to_i
           marker_tip = [3, (marker_height * 0.35).to_i].max
 
           svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{bar_height}\" fill=\"#{bar_color}\"/>"
+          if completion_offset != start_x
+            center_y = bar_y + bar_height + 1.5
+            svg_lines << "  <line x1=\"#{start_x}\" y1=\"#{center_y}\" x2=\"#{completion_offset}\" y2=\"#{center_y}\" stroke=\"#{completion_color}\" stroke-width=\"3\"/>"
+          end
           svg_lines << "  <polygon points=\"#{marker_points(start_x, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
           svg_lines << "  <polygon points=\"#{marker_points(start_x + width, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
       end
 
-      def task_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color)
+      def task_bar(svg_lines, start_x, bar_y, width, bar_height, bar_color, marker_color, completion_offset, completion_color)
 
           marker_width = [6, (bar_height * 0.8).to_i].max
           marker_height = [8, (bar_height * 0.9).to_i].max
           marker_tip = [3, (marker_height * 0.35).to_i].max
 
           svg_lines << "  <rect x=\"#{start_x}\" y=\"#{bar_y}\" width=\"#{width}\" height=\"#{bar_height}\" fill=\"#{bar_color}\"/>"
+          if completion_offset != start_x
+            center_y = bar_y + marker_height - marker_tip + 2
+            svg_lines << "  <line x1=\"#{start_x}\" y1=\"#{center_y}\" x2=\"#{completion_offset}\" y2=\"#{center_y}\" stroke=\"#{completion_color}\" stroke-width=\"4\"/>"
+          end
           svg_lines << "  <polygon points=\"#{marker_points(start_x, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
           svg_lines << "  <polygon points=\"#{marker_points(start_x + width, bar_y, marker_width, marker_height, marker_tip)}\" fill=\"#{marker_color}\"/>"
       end
