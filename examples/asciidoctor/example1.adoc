@@ -1,6 +1,7 @@
 :doctype: book
 :toc: left
 :imagesdir: .
+:gantt-completion-color: #ff0000
 
 = Example Gantt Diagram
 
@@ -23,6 +24,9 @@ activities:
   3.25, "Release Prep", duration=1, dependencies=3
   3.3, "Training", duration=1.5, dependencies=3.2, notBefore=12
   4, "End of project", dependencies=3.2
+completion:
+  1, 80%
+  2.1, 1
 ----
 
 The chart above should render as an SVG and be embedded into the PDF output.
