@@ -2,7 +2,7 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
-const { spawnSync } = require("node:child_process");
+const cp = require("node:child_process");
 
 /**
  * Returns true when the PNG needs to be (re-)generated:
@@ -44,7 +44,7 @@ function convertToPng(drawioAbsPath, pngAbsPath) {
     drawioAbsPath,
   ];
 
-  const result = spawnSync(cmd, args, { encoding: "utf8" });
+  const result = cp.spawnSync(cmd, args, { encoding: "utf8" });
 
   if (result.status !== 0) {
     const output = (result.stdout || "") + (result.stderr || "");
