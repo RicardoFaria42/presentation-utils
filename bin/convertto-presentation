@@ -133,14 +133,27 @@ if [[ ! -f "$theme_path" ]]; then
 fi
 
 compiled_theme=""
+preprocessed_dir=""
 cleanup() {
   if [[ -n "${compiled_theme:-}" && -f "${compiled_theme:-}" ]]; then
     rm -f "$compiled_theme" || true
+  fi
+  if [[ -n "${preprocessed_dir:-}" && -d "${preprocessed_dir:-}" ]]; then
+    rm -rf "$preprocessed_dir" || true
   fi
 }
 trap cleanup EXIT
 
 compiled_theme="$(node /usr/local/lib/marp-theme-embed.js --input "$theme_path")"
+
+# Run the pre-processing pipeline (draw.io image export, etc.).
+# The pipeline writes a temp file next to the original and prints its path.
+preprocessed_path="$(node /usr/local/lib/marp-preprocess.mjs "$path")" || {
+  echo "ERROR: marp-preprocess failed for $path" >&2
+  exit 1
+}
+preprocessed_dir="$(dirname "$preprocessed_path")"
+preprocessed_file="$(basename "$preprocessed_path")"
 
 marp_args=()
 if [[ "$format" == "pdf" ]]; then
@@ -155,7 +168,7 @@ if [[ "$notes" -eq 1 ]]; then
   marp_args+=(--pdf-notes)
 fi
 
-marp_args+=("$input_file" -o "$output" --theme "$compiled_theme" --engine /usr/local/lib/engine.mjs)
+marp_args+=("$preprocessed_file" -o "$output" --theme "$compiled_theme" --engine /usr/local/lib/engine.mjs)
 
 pushd "$input_dir" >/dev/null
 marp "${marp_args[@]}" "${extra[@]}"
