@@ -23,9 +23,9 @@
  */
 
 import { createRequire } from "node:module";
-import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, basename, extname } from "node:path";
-import { tmpdir } from "node:os";
+const { randomBytes } = await import("node:crypto");
 
 // Use createRequire so we can load CommonJS plugin modules from absolute paths.
 const require = createRequire(import.meta.url);
@@ -33,9 +33,9 @@ const require = createRequire(import.meta.url);
 // ---------------------------------------------------------------------------
 // Registered preprocessors (extend this list to add new ones).
 // ---------------------------------------------------------------------------
-const { preprocess: drawioPreprocess } = require(
-  "/plugins/marp/drawio-image/index.js"
-);
+const {
+  preprocess: drawioPreprocess,
+} = require("/plugins/marp/drawio-image/index.js");
 
 const preprocessors = [drawioPreprocess];
 
@@ -47,9 +47,20 @@ const inputPath = process.argv[2];
 
 if (!inputPath) {
   process.stderr.write(
-    "Usage: node marp-preprocess.mjs <absolute-path-to-input.md>\n"
+    "Usage: node marp-preprocess.mjs <absolute-path-to-input.md>\n",
   );
   process.exit(1);
+}
+
+function random_suffix(length = 8) {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = randomBytes(length);
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(bytes[i] % chars.length);
+  }
+  return result;
 }
 
 try {
@@ -64,8 +75,8 @@ try {
   // Write the processed content to a temp file inside the same directory as
   // the original so that relative paths (images, etc.) resolve identically.
   const ext = extname(basename(inputPath)) || ".md";
-  const tmpDir = mkdtempSync(join(inputDir, ".marp-preprocess-"));
-  const tmpFile = join(tmpDir, `preprocessed${ext}`);
+  const suffix = random_suffix();
+  const tmpFile = join("./", `preprocessed_${suffix}${ext}`);
   writeFileSync(tmpFile, markdownText, "utf8");
 
   process.stdout.write(tmpFile + "\n");

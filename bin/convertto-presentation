@@ -133,13 +133,13 @@ if [[ ! -f "$theme_path" ]]; then
 fi
 
 compiled_theme=""
-preprocessed_dir=""
+preprocessed_path=""
 cleanup() {
   if [[ -n "${compiled_theme:-}" && -f "${compiled_theme:-}" ]]; then
     rm -f "$compiled_theme" || true
   fi
-  if [[ -n "${preprocessed_dir:-}" && -d "${preprocessed_dir:-}" ]]; then
-    rm -rf "$preprocessed_dir" || true
+  if [[ -n "${preprocessed_path:-}" && -d "${preprocessed_path:-}" ]]; then
+    rm -rf "$preprocessed_path" || true
   fi
 }
 trap cleanup EXIT
@@ -152,8 +152,6 @@ preprocessed_path="$(node /usr/local/lib/marp-preprocess.mjs "$path")" || {
   echo "ERROR: marp-preprocess failed for $path" >&2
   exit 1
 }
-preprocessed_dir="$(dirname "$preprocessed_path")"
-preprocessed_file="$(basename "$preprocessed_path")"
 
 marp_args=()
 if [[ "$format" == "pdf" ]]; then
@@ -168,7 +166,7 @@ if [[ "$notes" -eq 1 ]]; then
   marp_args+=(--pdf-notes)
 fi
 
-marp_args+=("$preprocessed_file" -o "$output" --theme "$compiled_theme" --engine /usr/local/lib/engine.mjs)
+marp_args+=("$preprocessed_path" -o "$output" --theme "$compiled_theme" --engine /usr/local/lib/engine.mjs)
 
 pushd "$input_dir" >/dev/null
 marp "${marp_args[@]}" "${extra[@]}"
