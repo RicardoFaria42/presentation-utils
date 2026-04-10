@@ -34,15 +34,23 @@ function convertToImg(mermaidContent, pngAbsPath) {
   const tmpMmd = pngAbsPath.replace(/\.png$/, ".mmd");
   fs.writeFileSync(tmpMmd, mermaidContent, "utf8");
 
+  const mmdcArgs = [
+    "-i",
+    tmpMmd,
+    "-o",
+    pngAbsPath,
+    "-p",
+    "/usr/local/lib/puppeteer-config.json",
+  ];
   try {
-    const result = cp.spawnSync("mmdc", ["-i", tmpMmd, "-o", pngAbsPath], {
+    const result = cp.spawnSync("mmdc", mmdcArgs, {
       encoding: "utf8",
     });
 
     if (result.status !== 0) {
       const output = (result.stdout || "") + (result.stderr || "");
       throw new Error(
-        `mmdc export failed (exit ${result.status}): ${output.trim()}`
+        `mmdc export failed (exit ${result.status}): ${output.trim()}`,
       );
     }
   } finally {
@@ -74,9 +82,9 @@ function convertToImg(mermaidContent, pngAbsPath) {
 function preprocess(markdownText, { inputDir }) {
   // Match fenced mermaid blocks: ```mermaid\n<content>\n```
   // The closing ``` must be on its own line.
-  const mermaidRegex = /^```mermaid\r?\n([\s\S]*?)^```/gm;
+  const mermaidRegex = /^```mermaid( \[[^\]]*\])?\r?\n([\s\S]*?)^```/gm;
 
-  return markdownText.replace(mermaidRegex, (match, content) => {
+  return markdownText.replace(mermaidRegex, (match, options, content) => {
     const hash = crypto.createHash("sha256").update(content).digest("hex");
     const pngRelPath = path.join(".imggen", `mermaid-${hash}.png`);
     const pngAbsPath = path.join(inputDir, pngRelPath);
@@ -86,7 +94,7 @@ function preprocess(markdownText, { inputDir }) {
         convertToImg(content, pngAbsPath);
       } catch (err) {
         process.stderr.write(
-          `[mermaid-diagram] warning: conversion failed, skipping: ${err.message}\n`
+          `[mermaid-diagram] warning: conversion failed, skipping: ${err.message}\n`,
         );
         return match;
       }
@@ -94,7 +102,7 @@ function preprocess(markdownText, { inputDir }) {
 
     // Normalise to forward slashes so the path is valid in Markdown on all platforms.
     const pngRelPathNormalised = pngRelPath.replace(/\\/g, "/");
-    return `![](${pngRelPathNormalised})`;
+    return `![${options}](${pngRelPathNormalised})`;
   });
 }
 
